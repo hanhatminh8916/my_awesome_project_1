@@ -9,10 +9,13 @@
 [![AWS EKS](https://img.shields.io/badge/AWS-EKS-orange)](https://aws.amazon.com/eks/)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
+📊 **Tài liệu & Dữ liệu / Documentation & Datasheet**: [Google Drive](https://drive.google.com/drive/folders/1-G4Zb_eFxQFvpU715nX-xuFR6Ho2n-ET)
+
 ---
 
 ## 📋 Mục lục / Table of Contents
 
+- [Tài liệu & Dữ liệu / Documentation & Datasheet](#-tài-liệu--dữ-liệu--documentation--datasheet)
 - [Kiến trúc / Architecture](#-kiến-trúc--architecture)
 - [Khởi động nhanh / Quick Start](#-khởi-động-nhanh--quick-start)
 - [Danh sách dịch vụ / Service Map](#-danh-sách-dịch-vụ--service-map)
@@ -22,6 +25,22 @@
 - [Xử lý sự cố / Troubleshooting](#-xử-lý-sự-cố--troubleshooting)
 - [Cấu trúc dự án / Project Structure](#-cấu-trúc-dự-án--project-structure)
 - [Tiến độ các giai đoạn / Phase Summary](#-tiến-độ-các-giai-đoạn--phase-summary)
+
+---
+
+## 📊 Tài liệu & Dữ liệu / Documentation & Datasheet
+
+Toàn bộ tài liệu thiết kế, datasheet huấn luyện ML, sơ đồ kiến trúc chi tiết, và dữ liệu mẫu được lưu trữ tại:
+
+> All design documents, ML training datasheets, detailed architecture diagrams, and sample data are stored at:
+
+🔗 **[Google Drive — Manager Microservices](https://drive.google.com/drive/folders/1-G4Zb_eFxQFvpU715nX-xuFR6Ho2n-ET)**
+
+| Thư mục / Folder | Nội dung / Content |
+|---|---|
+| `datasheet/` | Dữ liệu huấn luyện ML & thống kê / ML training data & statistics |
+| `architecture/` | Sơ đồ kiến trúc chi tiết / Detailed architecture diagrams |
+| `docs/` | Tài liệu thiết kế & hướng dẫn / Design docs & guides |
 
 ---
 
@@ -152,6 +171,7 @@ bash scripts/e2e_test.sh --skip-build --no-cleanup
 ```
 model/training_data.csv  (41,280 dòng × 8 đặc trưng / rows × 8 features)
          │
+         │  📊 [Datasheet trên Google Drive](https://drive.google.com/drive/folders/1-G4Zb_eFxQFvpU715nX-xuFR6Ho2n-ET)
          ▼
 infra/ml-model/train_model.py
   1. Nạp & lọc chất lượng / Load & quality filter
