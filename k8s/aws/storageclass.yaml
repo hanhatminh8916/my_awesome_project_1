@@ -1,0 +1,21 @@
+# =============================================================================
+# EBS gp3 StorageClass for AWS EKS
+# Prerequisites: AWS EBS CSI Driver installed
+#   helm repo add aws-ebs-csi-driver https://kubernetes-sigs.github.io/aws-ebs-csi-driver
+#   helm install aws-ebs-csi-driver aws-ebs-csi-driver/aws-ebs-csi-driver -n kube-system
+# =============================================================================
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-gp3
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer   # Provision PVs only when pod is scheduled
+reclaimPolicy: Retain                     # Retain data after PVC deletion
+allowVolumeExpansion: true
+parameters:
+  type: gp3
+  encrypted: "true"
+  throughput: "125"    # MB/s (gp3 baseline)
+  iops: "3000"         # gp3 baseline

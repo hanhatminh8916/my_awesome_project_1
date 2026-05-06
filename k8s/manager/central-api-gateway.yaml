@@ -1,0 +1,231 @@
+# =============================================================================
+# manager — Central API Gateway  (port 8090)
+# ConfigMap + Deployment + Service + HPA + Ingress (AWS ALB)
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: central-api-gateway-config
+  namespace: manager
+data:
+  application.yml: |
+    server:
+      port: ${SERVER_PORT:8090}
+    spring:
+      application:
+        name: central-api-gateway
+      datasource:
+        url: ${SPRING_DATASOURCE_URL}
+        username: ${SPRING_DATASOURCE_USERNAME}
+        password: ${SPRING_DATASOURCE_PASSWORD}
+        hikari:
+          connection-timeout: 20000
+          maximum-pool-size: 5
+          minimum-idle: 1
+      jpa:
+        hibernate:
+          ddl-auto: update
+        show-sql: false
+        open-in-view: false
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,prometheus,metrics
+      endpoint:
+        health:
+          show-details: always
+          probes:
+            enabled: true
+      metrics:
+        tags:
+          application: ${spring.application.name}
+          cluster: ${APP_CLUSTER:local}
+        export:
+          prometheus:
+            enabled: true
+    logging:
+      logstash:
+        host: ${LOGSTASH_HOST:localhost}
+        port: ${LOGSTASH_PORT:5000}
+    app:
+      cluster: ${APP_CLUSTER:manager}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: central-api-gateway
+  namespace: manager
+  labels:
+    app: central-api-gateway
+    cluster: manager
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: central-api-gateway
+  template:
+    metadata:
+      labels:
+        app: central-api-gateway
+        cluster: manager
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8090"
+    spec:
+      serviceAccountName: manager-service-account
+      containers:
+        - name: central-api-gateway
+          image: <ECR_REGISTRY>/manager-central-api-gateway:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8090
+              protocol: TCP
+          env:
+            - name: SERVER_PORT
+              value: "8090"
+            - name: APP_CLUSTER
+              value: manager
+            - name: LOGSTASH_HOST
+              value: logstash.monitoring.svc.cluster.local
+            - name: LOGSTASH_PORT
+              value: "5000"
+            - name: SPRING_CONFIG_ADDITIONAL_LOCATION
+              value: file:/config/
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: gateway-datasource-url
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: db-username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: db-password
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8090
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8090
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 3
+            timeoutSeconds: 5
+      volumes:
+        - name: config-volume
+          configMap:
+            name: central-api-gateway-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: central-api-gateway
+  namespace: manager
+  labels:
+    app: central-api-gateway
+    cluster: manager
+spec:
+  selector:
+    app: central-api-gateway
+  ports:
+    - name: http
+      port: 8090
+      targetPort: 8090
+      protocol: TCP
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: central-api-gateway-hpa
+  namespace: manager
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: central-api-gateway
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+# =============================================================================
+# Ingress — AWS ALB via AWS Load Balancer Controller
+# Prerequisites:
+#   helm repo add eks https://aws.github.io/eks-charts
+#   helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+#     -n kube-system \
+#     --set clusterName=<CLUSTER_NAME> \
+#     --set serviceAccount.create=false \
+#     --set serviceAccount.name=aws-load-balancer-controller
+#
+# Replace <ACM_CERT_ARN> with your ACM certificate ARN.
+# For NGINX Ingress Controller instead, remove ALB annotations and set:
+#   kubernetes.io/ingress.class: nginx
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: central-api-gateway-ingress
+  namespace: manager
+  annotations:
+    # AWS ALB annotations
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /actuator/health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=60
+    alb.ingress.kubernetes.io/tags: Environment=production,Project=manager-microservices
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: central-api-gateway
+                port:
+                  number: 8090

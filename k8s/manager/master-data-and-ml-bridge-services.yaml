@@ -1,0 +1,364 @@
+# =============================================================================
+# manager — Master Data Service  (port 8096)
+# manager — ML-Bridge Service    (port 8097)
+# ConfigMap + Deployment + Service + HPA
+# =============================================================================
+
+# ── Master Data Service ──────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: master-data-service-config
+  namespace: manager
+data:
+  application.yml: |
+    server:
+      port: ${SERVER_PORT:8096}
+    spring:
+      application:
+        name: master-data-service
+      datasource:
+        url: ${SPRING_DATASOURCE_URL}
+        username: ${SPRING_DATASOURCE_USERNAME}
+        password: ${SPRING_DATASOURCE_PASSWORD}
+        hikari:
+          connection-timeout: 20000
+          maximum-pool-size: 10
+          minimum-idle: 2
+      jpa:
+        hibernate:
+          ddl-auto: update
+        show-sql: false
+        open-in-view: false
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,prometheus,metrics
+      endpoint:
+        health:
+          show-details: always
+          probes:
+            enabled: true
+      metrics:
+        tags:
+          application: ${spring.application.name}
+          cluster: ${APP_CLUSTER:local}
+        export:
+          prometheus:
+            enabled: true
+    logging:
+      logstash:
+        host: ${LOGSTASH_HOST:localhost}
+        port: ${LOGSTASH_PORT:5000}
+    app:
+      cluster: ${APP_CLUSTER:manager}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: master-data-service
+  namespace: manager
+  labels:
+    app: master-data-service
+    cluster: manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: master-data-service
+  template:
+    metadata:
+      labels:
+        app: master-data-service
+        cluster: manager
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8096"
+    spec:
+      serviceAccountName: manager-service-account
+      containers:
+        - name: master-data-service
+          image: <ECR_REGISTRY>/manager-master-data-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8096
+          env:
+            - name: SERVER_PORT
+              value: "8096"
+            - name: APP_CLUSTER
+              value: manager
+            - name: LOGSTASH_HOST
+              value: logstash.monitoring.svc.cluster.local
+            - name: LOGSTASH_PORT
+              value: "5000"
+            - name: SPRING_CONFIG_ADDITIONAL_LOCATION
+              value: file:/config/
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: master-data-datasource-url
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: db-username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: db-password
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8096
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8096
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 3
+      volumes:
+        - name: config-volume
+          configMap:
+            name: master-data-service-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: master-data-service
+  namespace: manager
+  labels:
+    app: master-data-service
+    cluster: manager
+spec:
+  selector:
+    app: master-data-service
+  ports:
+    - name: http
+      port: 8096
+      targetPort: 8096
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: master-data-service-hpa
+  namespace: manager
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: master-data-service
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+---
+# ── ML-Bridge Service ────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ml-bridge-service-config
+  namespace: manager
+data:
+  application.yml: |
+    server:
+      port: ${SERVER_PORT:8097}
+    spring:
+      application:
+        name: ml-bridge-service
+      datasource:
+        url: ${SPRING_DATASOURCE_URL}
+        username: ${SPRING_DATASOURCE_USERNAME}
+        password: ${SPRING_DATASOURCE_PASSWORD}
+        hikari:
+          connection-timeout: 20000
+          maximum-pool-size: 5
+          minimum-idle: 1
+      jpa:
+        hibernate:
+          ddl-auto: update
+        show-sql: false
+        open-in-view: false
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,prometheus,metrics
+      endpoint:
+        health:
+          show-details: always
+          probes:
+            enabled: true
+      metrics:
+        tags:
+          application: ${spring.application.name}
+          cluster: ${APP_CLUSTER:local}
+        export:
+          prometheus:
+            enabled: true
+    logging:
+      logstash:
+        host: ${LOGSTASH_HOST:localhost}
+        port: ${LOGSTASH_PORT:5000}
+    app:
+      cluster: ${APP_CLUSTER:manager}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-bridge-service
+  namespace: manager
+  labels:
+    app: ml-bridge-service
+    cluster: manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ml-bridge-service
+  template:
+    metadata:
+      labels:
+        app: ml-bridge-service
+        cluster: manager
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8097"
+    spec:
+      serviceAccountName: manager-service-account
+      containers:
+        - name: ml-bridge-service
+          image: <ECR_REGISTRY>/manager-ml-bridge-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8097
+          env:
+            - name: SERVER_PORT
+              value: "8097"
+            - name: APP_CLUSTER
+              value: manager
+            - name: ML_MODEL_URL
+              value: http://ml-model-service.manager.svc.cluster.local:8000
+            - name: PROMETHEUS_URL
+              value: http://prometheus.monitoring.svc.cluster.local:9090
+            - name: ALERT_SERVICE_URL
+              value: http://alert-service.manager.svc.cluster.local:8093
+            - name: ML_ALERT_DEDUP_COOLDOWN_MS
+              value: "30000"
+            - name: ML_ANOMALY_THRESHOLD_OVERRIDE
+              value: "0.5"
+            - name: LOGSTASH_HOST
+              value: logstash.monitoring.svc.cluster.local
+            - name: LOGSTASH_PORT
+              value: "5000"
+            - name: SPRING_CONFIG_ADDITIONAL_LOCATION
+              value: file:/config/
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ml-bridge-datasource-url
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: db-username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: db-password
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8097
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8097
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 3
+      volumes:
+        - name: config-volume
+          configMap:
+            name: ml-bridge-service-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-bridge-service
+  namespace: manager
+  labels:
+    app: ml-bridge-service
+    cluster: manager
+spec:
+  selector:
+    app: ml-bridge-service
+  ports:
+    - name: http
+      port: 8097
+      targetPort: 8097
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ml-bridge-service-hpa
+  namespace: manager
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ml-bridge-service
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

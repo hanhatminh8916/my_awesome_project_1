@@ -1,0 +1,354 @@
+# =============================================================================
+# manager — Automation Action Service  (port 8094)
+# manager — Report Service             (port 8095)
+# ConfigMap + Deployment + Service + HPA
+# =============================================================================
+
+# ── Automation Action Service ────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: automation-action-service-config
+  namespace: manager
+data:
+  application.yml: |
+    server:
+      port: ${SERVER_PORT:8094}
+    spring:
+      application:
+        name: automation-action-service
+      datasource:
+        url: ${SPRING_DATASOURCE_URL}
+        username: ${SPRING_DATASOURCE_USERNAME}
+        password: ${SPRING_DATASOURCE_PASSWORD}
+        hikari:
+          connection-timeout: 20000
+          maximum-pool-size: 5
+          minimum-idle: 1
+      jpa:
+        hibernate:
+          ddl-auto: update
+        show-sql: false
+        open-in-view: false
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,prometheus,metrics
+      endpoint:
+        health:
+          show-details: always
+          probes:
+            enabled: true
+      metrics:
+        tags:
+          application: ${spring.application.name}
+          cluster: ${APP_CLUSTER:local}
+        export:
+          prometheus:
+            enabled: true
+    logging:
+      logstash:
+        host: ${LOGSTASH_HOST:localhost}
+        port: ${LOGSTASH_PORT:5000}
+    app:
+      cluster: ${APP_CLUSTER:manager}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: automation-action-service
+  namespace: manager
+  labels:
+    app: automation-action-service
+    cluster: manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: automation-action-service
+  template:
+    metadata:
+      labels:
+        app: automation-action-service
+        cluster: manager
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8094"
+    spec:
+      serviceAccountName: manager-service-account
+      containers:
+        - name: automation-action-service
+          image: <ECR_REGISTRY>/manager-automation-action-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8094
+          env:
+            - name: SERVER_PORT
+              value: "8094"
+            - name: APP_CLUSTER
+              value: manager
+            - name: LOGSTASH_HOST
+              value: logstash.monitoring.svc.cluster.local
+            - name: LOGSTASH_PORT
+              value: "5000"
+            - name: SPRING_CONFIG_ADDITIONAL_LOCATION
+              value: file:/config/
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: automation-datasource-url
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: db-username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: db-password
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8094
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8094
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 3
+      volumes:
+        - name: config-volume
+          configMap:
+            name: automation-action-service-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: automation-action-service
+  namespace: manager
+  labels:
+    app: automation-action-service
+    cluster: manager
+spec:
+  selector:
+    app: automation-action-service
+  ports:
+    - name: http
+      port: 8094
+      targetPort: 8094
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: automation-action-service-hpa
+  namespace: manager
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: automation-action-service
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+---
+# ── Report Service ───────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: report-service-config
+  namespace: manager
+data:
+  application.yml: |
+    server:
+      port: ${SERVER_PORT:8095}
+    spring:
+      application:
+        name: report-service
+      datasource:
+        url: ${SPRING_DATASOURCE_URL}
+        username: ${SPRING_DATASOURCE_USERNAME}
+        password: ${SPRING_DATASOURCE_PASSWORD}
+        hikari:
+          connection-timeout: 20000
+          maximum-pool-size: 5
+          minimum-idle: 1
+      jpa:
+        hibernate:
+          ddl-auto: update
+        show-sql: false
+        open-in-view: false
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,prometheus,metrics
+      endpoint:
+        health:
+          show-details: always
+          probes:
+            enabled: true
+      metrics:
+        tags:
+          application: ${spring.application.name}
+          cluster: ${APP_CLUSTER:local}
+        export:
+          prometheus:
+            enabled: true
+    logging:
+      logstash:
+        host: ${LOGSTASH_HOST:localhost}
+        port: ${LOGSTASH_PORT:5000}
+    app:
+      cluster: ${APP_CLUSTER:manager}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: report-service
+  namespace: manager
+  labels:
+    app: report-service
+    cluster: manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: report-service
+  template:
+    metadata:
+      labels:
+        app: report-service
+        cluster: manager
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8095"
+    spec:
+      serviceAccountName: manager-service-account
+      containers:
+        - name: report-service
+          image: <ECR_REGISTRY>/manager-report-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8095
+          env:
+            - name: SERVER_PORT
+              value: "8095"
+            - name: APP_CLUSTER
+              value: manager
+            - name: LOGSTASH_HOST
+              value: logstash.monitoring.svc.cluster.local
+            - name: LOGSTASH_PORT
+              value: "5000"
+            - name: SPRING_CONFIG_ADDITIONAL_LOCATION
+              value: file:/config/
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: report-datasource-url
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: db-username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: db-password
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8095
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8095
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 3
+      volumes:
+        - name: config-volume
+          configMap:
+            name: report-service-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: report-service
+  namespace: manager
+  labels:
+    app: report-service
+    cluster: manager
+spec:
+  selector:
+    app: report-service
+  ports:
+    - name: http
+      port: 8095
+      targetPort: 8095
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: report-service-hpa
+  namespace: manager
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: report-service
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

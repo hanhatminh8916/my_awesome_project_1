@@ -1,0 +1,73 @@
+# =============================================================================
+# ServiceMonitor CRDs — Prometheus Operator
+# Requires: kube-prometheus-stack OR prometheus-operator installed.
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+#     -n monitoring --create-namespace
+#
+# These ServiceMonitors tell the Prometheus Operator to scrape /actuator/prometheus
+# for all microservice pods in agent1, agent2, and manager namespaces.
+# =============================================================================
+
+# ── agent1 services ─────────────────────────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: agent1-services-monitor
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack   # Must match Prometheus Operator's serviceMonitorSelector
+spec:
+  namespaceSelector:
+    matchNames:
+      - agent1
+  selector:
+    matchLabels:
+      cluster: agent1
+  endpoints:
+    - path: /actuator/prometheus
+      port: http
+      interval: 15s
+      scrapeTimeout: 10s
+---
+# ── agent2 services ─────────────────────────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: agent2-services-monitor
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - agent2
+  selector:
+    matchLabels:
+      cluster: agent2
+  endpoints:
+    - path: /actuator/prometheus
+      port: http
+      interval: 15s
+      scrapeTimeout: 10s
+---
+# ── manager services ────────────────────────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: manager-services-monitor
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - manager
+  selector:
+    matchLabels:
+      cluster: manager
+  endpoints:
+    - path: /actuator/prometheus
+      port: http
+      interval: 15s
+      scrapeTimeout: 10s

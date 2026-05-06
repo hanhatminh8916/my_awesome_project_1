@@ -1,0 +1,449 @@
+# =============================================================================
+# manager — Central Analytics Service  (port 8092)
+# ConfigMap + Deployment + Service + HPA
+# manager — Alert Service              (port 8093)
+# ConfigMap + Deployment + Service + HPA
+# =============================================================================
+
+# ── Central Analytics Service ───────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: central-analytics-service-config
+  namespace: manager
+data:
+  application.yml: |
+    server:
+      port: ${SERVER_PORT:8092}
+    spring:
+      application:
+        name: central-analytics-service
+      datasource:
+        url: ${SPRING_DATASOURCE_URL}
+        username: ${SPRING_DATASOURCE_USERNAME}
+        password: ${SPRING_DATASOURCE_PASSWORD}
+        hikari:
+          connection-timeout: 20000
+          maximum-pool-size: 10
+          minimum-idle: 2
+      jpa:
+        hibernate:
+          ddl-auto: update
+        show-sql: false
+        open-in-view: false
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,prometheus,metrics
+      endpoint:
+        health:
+          show-details: always
+          probes:
+            enabled: true
+      metrics:
+        tags:
+          application: ${spring.application.name}
+          cluster: ${APP_CLUSTER:local}
+        export:
+          prometheus:
+            enabled: true
+    logging:
+      logstash:
+        host: ${LOGSTASH_HOST:localhost}
+        port: ${LOGSTASH_PORT:5000}
+    app:
+      cluster: ${APP_CLUSTER:manager}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: central-analytics-service
+  namespace: manager
+  labels:
+    app: central-analytics-service
+    cluster: manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: central-analytics-service
+  template:
+    metadata:
+      labels:
+        app: central-analytics-service
+        cluster: manager
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8092"
+    spec:
+      serviceAccountName: manager-service-account
+      containers:
+        - name: central-analytics-service
+          image: <ECR_REGISTRY>/manager-central-analytics-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8092
+          env:
+            - name: SERVER_PORT
+              value: "8092"
+            - name: APP_CLUSTER
+              value: manager
+            - name: LOGSTASH_HOST
+              value: logstash.monitoring.svc.cluster.local
+            - name: LOGSTASH_PORT
+              value: "5000"
+            - name: SPRING_CONFIG_ADDITIONAL_LOCATION
+              value: file:/config/
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: analytics-datasource-url
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: db-username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: db-password
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8092
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8092
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 3
+      volumes:
+        - name: config-volume
+          configMap:
+            name: central-analytics-service-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: central-analytics-service
+  namespace: manager
+  labels:
+    app: central-analytics-service
+    cluster: manager
+spec:
+  selector:
+    app: central-analytics-service
+  ports:
+    - name: http
+      port: 8092
+      targetPort: 8092
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: central-analytics-service-hpa
+  namespace: manager
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: central-analytics-service
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+---
+# ── Alert Service ────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alert-service-config
+  namespace: manager
+data:
+  application.yml: |
+    server:
+      port: ${SERVER_PORT:8093}
+    spring:
+      application:
+        name: alert-service
+      datasource:
+        url: ${SPRING_DATASOURCE_URL}
+        username: ${SPRING_DATASOURCE_USERNAME}
+        password: ${SPRING_DATASOURCE_PASSWORD}
+        hikari:
+          connection-timeout: 20000
+          maximum-pool-size: 5
+          minimum-idle: 1
+      jpa:
+        hibernate:
+          ddl-auto: update
+        show-sql: false
+        open-in-view: false
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,prometheus,metrics
+      endpoint:
+        health:
+          show-details: always
+          probes:
+            enabled: true
+      metrics:
+        tags:
+          application: ${spring.application.name}
+          cluster: ${APP_CLUSTER:local}
+        export:
+          prometheus:
+            enabled: true
+    logging:
+      logstash:
+        host: ${LOGSTASH_HOST:localhost}
+        port: ${LOGSTASH_PORT:5000}
+    app:
+      cluster: ${APP_CLUSTER:manager}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alert-service
+  namespace: manager
+  labels:
+    app: alert-service
+    cluster: manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alert-service
+  template:
+    metadata:
+      labels:
+        app: alert-service
+        cluster: manager
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8093"
+    spec:
+      serviceAccountName: manager-service-account
+      containers:
+        - name: alert-service
+          image: <ECR_REGISTRY>/manager-alert-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8093
+          env:
+            - name: SERVER_PORT
+              value: "8093"
+            - name: APP_CLUSTER
+              value: manager
+            - name: ALERT_EMAIL_COOLDOWN_SECONDS
+              value: "30"
+            - name: ALERT_EMAIL_GLOBAL_COOLDOWN_SECONDS
+              value: "30"
+            - name: ALERT_EMAIL_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_FROM
+            - name: ALERT_EMAIL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_PASSWORD
+            - name: ALERT_EMAIL_TO
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_TO
+            - name: ALERT_EMAIL_MANAGER_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_MANAGER_FROM
+            - name: ALERT_EMAIL_MANAGER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_MANAGER_PASSWORD
+            - name: ALERT_EMAIL_MANAGER_TO
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_MANAGER_TO
+            - name: ALERT_EMAIL_INVENTORY_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_INVENTORY_FROM
+            - name: ALERT_EMAIL_INVENTORY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_INVENTORY_PASSWORD
+            - name: ALERT_EMAIL_INVENTORY_TO
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_INVENTORY_TO
+            - name: ALERT_EMAIL_ORDER_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_ORDER_FROM
+            - name: ALERT_EMAIL_ORDER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_ORDER_PASSWORD
+            - name: ALERT_EMAIL_ORDER_TO
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_ORDER_TO
+            - name: ALERT_EMAIL_REVENUE_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_REVENUE_FROM
+            - name: ALERT_EMAIL_REVENUE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_REVENUE_PASSWORD
+            - name: ALERT_EMAIL_REVENUE_TO
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_REVENUE_TO
+            - name: ALERT_EMAIL_PRODUCT_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_PRODUCT_FROM
+            - name: ALERT_EMAIL_PRODUCT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_PRODUCT_PASSWORD
+            - name: ALERT_EMAIL_PRODUCT_TO
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: ALERT_EMAIL_PRODUCT_TO
+            - name: LOGSTASH_HOST
+              value: logstash.monitoring.svc.cluster.local
+            - name: LOGSTASH_PORT
+              value: "5000"
+            - name: SPRING_CONFIG_ADDITIONAL_LOCATION
+              value: file:/config/
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: alert-datasource-url
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: db-username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: db-password
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8093
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8093
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 3
+      volumes:
+        - name: config-volume
+          configMap:
+            name: alert-service-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alert-service
+  namespace: manager
+  labels:
+    app: alert-service
+    cluster: manager
+spec:
+  selector:
+    app: alert-service
+  ports:
+    - name: http
+      port: 8093
+      targetPort: 8093
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: alert-service-hpa
+  namespace: manager
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: alert-service
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

@@ -1,0 +1,853 @@
+services:
+  # ---------- Databases: Agent 1 ----------
+  agent1-sales-db:
+    image: postgres:16-alpine
+    container_name: agent1-sales-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agent1_sales
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5433:5432"
+    volumes:
+      - agent1_sales_db_data:/var/lib/postgresql/data
+    networks: [agent1-net]
+
+  agent1-inventory-db:
+    image: postgres:16-alpine
+    container_name: agent1-inventory-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agent1_inventory
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5434:5432"
+    volumes:
+      - agent1_inventory_db_data:/var/lib/postgresql/data
+    networks: [agent1-net]
+
+  agent1-revenue-db:
+    image: postgres:16-alpine
+    container_name: agent1-revenue-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agent1_revenue
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5435:5432"
+    volumes:
+      - agent1_revenue_db_data:/var/lib/postgresql/data
+    networks: [agent1-net]
+
+  agent1-product-db:
+    image: postgres:16-alpine
+    container_name: agent1-product-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agent1_products
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5436:5432"
+    volumes:
+      - agent1_product_db_data:/var/lib/postgresql/data
+    networks: [agent1-net]
+
+  # ---------- Databases: Agent 2 ----------
+  agent2-sales-db:
+    image: postgres:16-alpine
+    container_name: agent2-sales-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agent2_sales
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5443:5432"
+    volumes:
+      - agent2_sales_db_data:/var/lib/postgresql/data
+    networks: [agent2-net]
+
+  agent2-inventory-db:
+    image: postgres:16-alpine
+    container_name: agent2-inventory-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agent2_inventory
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5444:5432"
+    volumes:
+      - agent2_inventory_db_data:/var/lib/postgresql/data
+    networks: [agent2-net]
+
+  agent2-revenue-db:
+    image: postgres:16-alpine
+    container_name: agent2-revenue-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agent2_revenue
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5445:5432"
+    volumes:
+      - agent2_revenue_db_data:/var/lib/postgresql/data
+    networks: [agent2-net]
+
+  agent2-product-db:
+    image: postgres:16-alpine
+    container_name: agent2-product-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agent2_products
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5446:5432"
+    volumes:
+      - agent2_product_db_data:/var/lib/postgresql/data
+    networks: [agent2-net]
+
+  # ---------- Databases: Manager ----------
+  manager-aggregation-db:
+    image: postgres:16-alpine
+    container_name: manager-aggregation-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: manager_aggregation
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5451:5432"
+    volumes:
+      - manager_aggregation_db_data:/var/lib/postgresql/data
+    networks: [manager-net]
+
+  manager-analytics-db:
+    image: postgres:16-alpine
+    container_name: manager-analytics-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: manager_analytics
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5452:5432"
+    volumes:
+      - manager_analytics_db_data:/var/lib/postgresql/data
+    networks: [manager-net]
+
+  manager-alert-db:
+    image: postgres:16-alpine
+    container_name: manager-alert-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: manager_alert
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5453:5432"
+    volumes:
+      - manager_alert_db_data:/var/lib/postgresql/data
+    networks: [manager-net]
+
+  manager-automation-db:
+    image: postgres:16-alpine
+    container_name: manager-automation-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: manager_automation
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5454:5432"
+    volumes:
+      - manager_automation_db_data:/var/lib/postgresql/data
+    networks: [manager-net]
+
+  manager-report-db:
+    image: postgres:16-alpine
+    container_name: manager-report-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: manager_report
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5455:5432"
+    volumes:
+      - manager_report_db_data:/var/lib/postgresql/data
+    networks: [manager-net]
+
+  manager-master-data-db:
+    image: postgres:16-alpine
+    container_name: manager-master-data-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: manager_master_data
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5456:5432"
+    volumes:
+      - manager_master_data_db_data:/var/lib/postgresql/data
+    networks: [manager-net]
+
+  manager-ml-bridge-db:
+    image: postgres:16-alpine
+    container_name: manager-ml-bridge-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: manager_ml_bridge
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5457:5432"
+    volumes:
+      - manager_ml_bridge_db_data:/var/lib/postgresql/data
+    networks: [manager-net]
+
+  manager-api-gateway-db:
+    image: postgres:16-alpine
+    container_name: manager-api-gateway-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: manager_api_gateway
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5458:5432"
+    volumes:
+      - manager_api_gateway_db_data:/var/lib/postgresql/data
+    networks: [manager-net]
+
+  # ---------- ELK ----------
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.14.3
+    container_name: elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+    networks: [observability-net]
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.14.3
+    container_name: logstash
+    restart: unless-stopped
+    volumes:
+      - ./observability/logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    ports:
+      - "5000:5000"
+      - "9600:9600"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - observability-net
+      - app-observability-net
+
+  # ---------- Alertmanager ----------
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    container_name: alertmanager
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    networks:
+      - observability-net
+      - app-observability-net
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.14.3
+    container_name: kibana
+    restart: unless-stopped
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks: [observability-net]
+
+  # ---------- Prometheus ----------
+  prometheus:
+    image: prom/prometheus:v2.53.1
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - observability-net
+      - app-observability-net
+
+  # ---------- Grafana ----------
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - observability-net
+
+  # ---------- Filebeat ----------
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.14.3
+    container_name: filebeat
+    restart: unless-stopped
+    user: root
+    command: filebeat -e --strict.perms=false
+    volumes:
+      - ./observability/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - filebeat_data:/usr/share/filebeat/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      logstash:
+        condition: service_started
+    networks:
+      - observability-net
+      - app-observability-net
+
+  # ---------- FastAPI ML Model service ----------
+  ml-model-service:
+    profiles: ["apps"]
+    build:
+      context: ./ml-model
+      dockerfile: Dockerfile
+    container_name: ml-model-service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+    networks:
+      - manager-net
+      - app-observability-net
+
+  # ---------- Spring Boot placeholders (enable with --profile apps) ----------
+  agent1-inventory-service:
+    profiles: ["apps"]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.spring-boot
+      args:
+        SERVICE_DIR: agent1/inventoryService
+    container_name: agent1-inventory-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8081
+      APP_CLUSTER: agent1
+      PRODUCT_SERVICE_URL: http://agent1-product-service:8084
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://agent1-inventory-db:5432/agent1_inventory
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+    ports:
+      - "8081:8081"
+    depends_on:
+      - agent1-inventory-db
+      - logstash
+    networks:
+      - agent1-net
+      - app-observability-net
+
+  agent1-order-service:
+    profiles: ["apps"]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.spring-boot
+      args:
+        SERVICE_DIR: agent1/orderService
+    container_name: agent1-order-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8082
+      APP_CLUSTER: agent1
+      INVENTORY_SERVICE_URL: http://agent1-inventory-service:8081
+      PRODUCT_SERVICE_URL: http://agent1-product-service:8084
+      APP_AGENT_ID: agent1
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://agent1-sales-db:5432/agent1_sales
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+    ports:
+      - "8082:8082"
+    depends_on:
+      - agent1-sales-db
+      - agent1-inventory-service
+      - agent1-product-service
+      - logstash
+    networks:
+      - agent1-net
+      - app-observability-net
+
+  agent1-product-service:
+    profiles: ["apps"]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.spring-boot
+      args:
+        SERVICE_DIR: agent1/productService
+    container_name: agent1-product-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8084
+      APP_CLUSTER: agent1
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://agent1-product-db:5432/agent1_products
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+    ports:
+      - "8084:8084"
+    depends_on:
+      - agent1-product-db
+      - logstash
+    networks:
+      - agent1-net
+      - app-observability-net
+
+  agent1-revenue-service:
+    profiles: ["apps"]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.spring-boot
+      args:
+        SERVICE_DIR: agent1/revenueService
+    container_name: agent1-revenue-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8083
+      APP_CLUSTER: agent1
+      ORDER_SERVICE_URL: http://agent1-order-service:8082
+      MANAGER_AGGREGATION_BASE_URL: http://manager-data-aggregation-service:8091
+      APP_AGENT_ID: agent1
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://agent1-revenue-db:5432/agent1_revenue
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+    ports:
+      - "8083:8083"
+    depends_on:
+      - agent1-revenue-db
+      - agent1-order-service
+      - logstash
+    networks:
+      - agent1-net
+      - app-observability-net
+      - manager-net
+
+  agent2-inventory-service:
+    profiles: ["apps"]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.spring-boot
+      args:
+        SERVICE_DIR: agent2/inventoryService
+    container_name: agent2-inventory-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8181
+      APP_CLUSTER: agent2
+      PRODUCT_SERVICE_URL: http://agent2-product-service:8184
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://agent2-inventory-db:5432/agent2_inventory
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+    ports:
+      - "8181:8181"
+    depends_on:
+      - agent2-inventory-db
+      - logstash
+    networks:
+      - agent2-net
+      - app-observability-net
+
+  agent2-order-service:
+    profiles: ["apps"]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.spring-boot
+      args:
+        SERVICE_DIR: agent2/orderService
+    container_name: agent2-order-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8182
+      APP_CLUSTER: agent2
+      INVENTORY_SERVICE_URL: http://agent2-inventory-service:8181
+      PRODUCT_SERVICE_URL: http://agent2-product-service:8184
+      APP_AGENT_ID: agent2
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://agent2-sales-db:5432/agent2_sales
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+    ports:
+      - "8182:8182"
+    depends_on:
+      - agent2-sales-db
+      - agent2-inventory-service
+      - agent2-product-service
+      - logstash
+    networks:
+      - agent2-net
+      - app-observability-net
+
+  agent2-product-service:
+    profiles: ["apps"]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.spring-boot
+      args:
+        SERVICE_DIR: agent2/productService
+    container_name: agent2-product-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8184
+      APP_CLUSTER: agent2
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://agent2-product-db:5432/agent2_products
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+    ports:
+      - "8184:8184"
+    depends_on:
+      - agent2-product-db
+      - logstash
+    networks:
+      - agent2-net
+      - app-observability-net
+
+  agent2-revenue-service:
+    profiles: ["apps"]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.spring-boot
+      args:
+        SERVICE_DIR: agent2/revenueService
+    container_name: agent2-revenue-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8183
+      APP_CLUSTER: agent2
+      ORDER_SERVICE_URL: http://agent2-order-service:8182
+      MANAGER_AGGREGATION_BASE_URL: http://manager-data-aggregation-service:8091
+      APP_AGENT_ID: agent2
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://agent2-revenue-db:5432/agent2_revenue
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+    ports:
+      - "8183:8183"
+    depends_on:
+      - agent2-revenue-db
+      - agent2-order-service
+      - logstash
+    networks:
+      - agent2-net
+      - app-observability-net
+      - manager-net
+
+  manager-data-aggregation-service:
+    profiles: ["apps"]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.spring-boot
+      args:
+        SERVICE_DIR: manager/dataAggregationService
+    container_name: manager-data-aggregation-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8091
+      APP_CLUSTER: manager
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://manager-aggregation-db:5432/manager_aggregation
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+    ports:
+      - "8091:8091"
+    depends_on:
+      - manager-aggregation-db
+      - logstash
+    networks:
+      - manager-net
+      - app-observability-net
+
+  manager-central-analytics-service:
+    profiles: ["apps"]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.spring-boot
+      args:
+        SERVICE_DIR: manager/centralAnalyticsService
+    container_name: manager-central-analytics-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8092
+      APP_CLUSTER: manager
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://manager-analytics-db:5432/manager_analytics
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+    ports:
+      - "8092:8092"
+    depends_on:
+      - manager-analytics-db
+      - logstash
+    networks:
+      - manager-net
+      - app-observability-net
+
+  manager-alert-service:
+    profiles: ["apps"]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.spring-boot
+      args:
+        SERVICE_DIR: manager/alertService
+    container_name: manager-alert-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8093
+      APP_CLUSTER: manager
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://manager-alert-db:5432/manager_alert
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+      ALERT_EMAIL_FROM: ${ALERT_EMAIL_FROM:-your-project@gmail.com}
+      ALERT_EMAIL_PASSWORD: ${ALERT_EMAIL_PASSWORD:-changeme}
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-admin@example.com}
+    ports:
+      - "8093:8093"
+    depends_on:
+      - manager-alert-db
+      - logstash
+    networks:
+      - manager-net
+      - app-observability-net
+
+  manager-automation-action-service:
+    profiles: ["apps"]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.spring-boot
+      args:
+        SERVICE_DIR: manager/automationActionService
+    container_name: manager-automation-action-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8094
+      APP_CLUSTER: manager
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://manager-automation-db:5432/manager_automation
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+    ports:
+      - "8094:8094"
+    depends_on:
+      - manager-automation-db
+      - logstash
+    networks:
+      - manager-net
+      - app-observability-net
+
+  manager-report-service:
+    profiles: ["apps"]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.spring-boot
+      args:
+        SERVICE_DIR: manager/reportService
+    container_name: manager-report-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8095
+      APP_CLUSTER: manager
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://manager-report-db:5432/manager_report
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+    ports:
+      - "8095:8095"
+    depends_on:
+      - manager-report-db
+      - logstash
+    networks:
+      - manager-net
+      - app-observability-net
+
+  manager-master-data-service:
+    profiles: ["apps"]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.spring-boot
+      args:
+        SERVICE_DIR: manager/masterDataService
+    container_name: manager-master-data-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8096
+      APP_CLUSTER: manager
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://manager-master-data-db:5432/manager_master_data
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+    ports:
+      - "8096:8096"
+    depends_on:
+      - manager-master-data-db
+      - logstash
+    networks:
+      - manager-net
+      - app-observability-net
+
+  manager-ml-bridge-service:
+    profiles: ["apps"]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.spring-boot
+      args:
+        SERVICE_DIR: manager/ML-BridgeService
+    container_name: manager-ml-bridge-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8097
+      APP_CLUSTER: manager
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://manager-ml-bridge-db:5432/manager_ml_bridge
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+      ML_MODEL_URL: http://ml-model-service:8000
+      PROMETHEUS_URL: http://prometheus:9090
+      ALERT_SERVICE_URL: http://manager-alert-service:8093
+    ports:
+      - "8097:8097"
+    depends_on:
+      - manager-ml-bridge-db
+      - logstash
+      - ml-model-service
+      - manager-alert-service
+    networks:
+      - manager-net
+      - app-observability-net
+
+  manager-central-api-gateway-service:
+    profiles: ["apps"]
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.spring-boot
+      args:
+        SERVICE_DIR: manager/centralAPIGateway
+    container_name: manager-central-api-gateway-service
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: 8090
+      APP_CLUSTER: manager
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5000
+      SPRING_DATASOURCE_URL: jdbc:postgresql://manager-api-gateway-db:5432/manager_api_gateway
+      SPRING_DATASOURCE_USERNAME: app
+      SPRING_DATASOURCE_PASSWORD: app
+    ports:
+      - "8090:8090"
+    depends_on:
+      - manager-api-gateway-db
+      - logstash
+    networks:
+      - manager-net
+      - app-observability-net
+
+networks:
+  agent1-net:
+    name: agent1-net
+  agent2-net:
+    name: agent2-net
+  manager-net:
+    name: manager-net
+  observability-net:
+    name: observability-net
+  app-observability-net:
+    name: app-observability-net
+
+volumes:
+  agent1_sales_db_data:
+  agent1_inventory_db_data:
+  agent1_revenue_db_data:
+  agent1_product_db_data:
+  agent2_sales_db_data:
+  agent2_inventory_db_data:
+  agent2_revenue_db_data:
+  agent2_product_db_data:
+  manager_aggregation_db_data:
+  manager_analytics_db_data:
+  manager_alert_db_data:
+  manager_automation_db_data:
+  manager_report_db_data:
+  manager_master_data_db_data:
+  manager_ml_bridge_db_data:
+  manager_api_gateway_db_data:
+  elasticsearch_data:
+  prometheus_data:
+  grafana_data:
+  filebeat_data:

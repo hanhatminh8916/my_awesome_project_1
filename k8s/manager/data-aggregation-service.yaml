@@ -1,0 +1,188 @@
+# =============================================================================
+# manager — Data Aggregation Service  (port 8091)
+# ConfigMap + Deployment + Service + HPA
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: data-aggregation-service-config
+  namespace: manager
+data:
+  application.yml: |
+    server:
+      port: ${SERVER_PORT:8091}
+    spring:
+      application:
+        name: data-aggregation-service
+      datasource:
+        url: ${SPRING_DATASOURCE_URL}
+        username: ${SPRING_DATASOURCE_USERNAME}
+        password: ${SPRING_DATASOURCE_PASSWORD}
+        hikari:
+          connection-timeout: 20000
+          maximum-pool-size: 10
+          minimum-idle: 2
+      jpa:
+        hibernate:
+          ddl-auto: update
+        show-sql: false
+        open-in-view: false
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,prometheus,metrics
+      endpoint:
+        health:
+          show-details: always
+          probes:
+            enabled: true
+      metrics:
+        tags:
+          application: ${spring.application.name}
+          cluster: ${APP_CLUSTER:local}
+        export:
+          prometheus:
+            enabled: true
+    logging:
+      logstash:
+        host: ${LOGSTASH_HOST:localhost}
+        port: ${LOGSTASH_PORT:5000}
+    app:
+      cluster: ${APP_CLUSTER:manager}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-aggregation-service
+  namespace: manager
+  labels:
+    app: data-aggregation-service
+    cluster: manager
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: data-aggregation-service
+  template:
+    metadata:
+      labels:
+        app: data-aggregation-service
+        cluster: manager
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8091"
+    spec:
+      serviceAccountName: manager-service-account
+      containers:
+        - name: data-aggregation-service
+          image: <ECR_REGISTRY>/manager-data-aggregation-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8091
+              protocol: TCP
+          env:
+            - name: SERVER_PORT
+              value: "8091"
+            - name: APP_CLUSTER
+              value: manager
+            - name: LOGSTASH_HOST
+              value: logstash.monitoring.svc.cluster.local
+            - name: LOGSTASH_PORT
+              value: "5000"
+            - name: SPRING_CONFIG_ADDITIONAL_LOCATION
+              value: file:/config/
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: aggregation-datasource-url
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: db-username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: manager-db-secret
+                  key: db-password
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8091
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8091
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 3
+            timeoutSeconds: 5
+      volumes:
+        - name: config-volume
+          configMap:
+            name: data-aggregation-service-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-aggregation-service
+  namespace: manager
+  labels:
+    app: data-aggregation-service
+    cluster: manager
+spec:
+  selector:
+    app: data-aggregation-service
+  ports:
+    - name: http
+      port: 8091
+      targetPort: 8091
+      protocol: TCP
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: data-aggregation-service-hpa
+  namespace: manager
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: data-aggregation-service
+  minReplicas: 1
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

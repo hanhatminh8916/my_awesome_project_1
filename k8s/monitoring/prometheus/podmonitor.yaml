@@ -1,0 +1,42 @@
+# =============================================================================
+# PodMonitor CRD — Prometheus Operator
+# Scrapes ALL pods across agent1, agent2, and manager namespaces that have
+# the annotation prometheus.io/scrape: "true".
+# Complements ServiceMonitor — catches pods that don't have a backing Service
+# or that need direct pod-level scraping.
+# =============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: microservices-pod-monitor
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack   # Must match Prometheus Operator's podMonitorSelector
+spec:
+  namespaceSelector:
+    matchNames:
+      - agent1
+      - agent2
+      - manager
+  selector:
+    matchExpressions:
+      - key: cluster
+        operator: In
+        values:
+          - agent1
+          - agent2
+          - manager
+  podMetricsEndpoints:
+    - path: /actuator/prometheus
+      port: http
+      interval: 15s
+      scrapeTimeout: 10s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_pod_label_app]
+          targetLabel: job
+        - sourceLabels: [__meta_kubernetes_pod_label_cluster]
+          targetLabel: cluster

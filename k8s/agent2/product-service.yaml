@@ -1,0 +1,201 @@
+# =============================================================================
+# agent2 — Product Service  (port 8184)
+# ConfigMap (application.yml) + Deployment + Service + HPA
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: product-service-config
+  namespace: agent2
+data:
+  application.yml: |
+    server:
+      port: ${SERVER_PORT:8184}
+    spring:
+      application:
+        name: products
+      datasource:
+        url: ${SPRING_DATASOURCE_URL}
+        username: ${SPRING_DATASOURCE_USERNAME}
+        password: ${SPRING_DATASOURCE_PASSWORD}
+        hikari:
+          connection-timeout: 20000
+          maximum-pool-size: 10
+          minimum-idle: 2
+      jpa:
+        hibernate:
+          ddl-auto: update
+        show-sql: false
+        open-in-view: false
+    management:
+      endpoints:
+        web:
+          exposure:
+            include: health,info,prometheus,metrics
+      endpoint:
+        health:
+          show-details: always
+          probes:
+            enabled: true
+      metrics:
+        tags:
+          application: ${spring.application.name}
+          cluster: ${APP_CLUSTER:local}
+        export:
+          prometheus:
+            enabled: true
+    logging:
+      logstash:
+        host: ${LOGSTASH_HOST:localhost}
+        port: ${LOGSTASH_PORT:5000}
+    app:
+      cluster: ${APP_CLUSTER:agent2}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-service
+  namespace: agent2
+  labels:
+    app: product-service
+    cluster: agent2
+    version: v1
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: product-service
+  template:
+    metadata:
+      labels:
+        app: product-service
+        cluster: agent2
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8184"
+    spec:
+      serviceAccountName: agent2-service-account
+      containers:
+        - name: product-service
+          image: <ECR_REGISTRY>/agent2-product-service:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8184
+              protocol: TCP
+          env:
+            - name: SERVER_PORT
+              value: "8184"
+            - name: APP_CLUSTER
+              value: agent2
+
+            - name: LOGSTASH_HOST
+              value: logstash.monitoring.svc.cluster.local
+            - name: LOGSTASH_PORT
+              value: "5000"
+            - name: SPRING_CONFIG_ADDITIONAL_LOCATION
+              value: file:/config/
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: agent2-db-secret
+                  key: products-datasource-url
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: agent2-db-secret
+                  key: db-username
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: agent2-db-secret
+                  key: db-password
+          volumeMounts:
+            - name: config-volume
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: 400m
+              memory: 384Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8184
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            failureThreshold: 6
+            timeoutSeconds: 5
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8184
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8184
+            initialDelaySeconds: 120
+            periodSeconds: 20
+            failureThreshold: 3
+            timeoutSeconds: 5
+      volumes:
+        - name: config-volume
+          configMap:
+            name: product-service-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-service
+  namespace: agent2
+  labels:
+    app: product-service
+    cluster: agent2
+spec:
+  selector:
+    app: product-service
+  ports:
+    - name: http
+      port: 8184
+      targetPort: 8184
+      protocol: TCP
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: product-service-hpa
+  namespace: agent2
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: product-service
+  minReplicas: 1
+  maxReplicas: 1
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

@@ -1,0 +1,79 @@
+# === Java / Maven ===
+target/
+*.class
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+
+# === IDE ===
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+
+# === OS ===
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# === ML Model artifacts ===
+infra/ml-model/models/*.pkl
+infra/ml-model/models/*.json
+
+# === Docker ===
+*.log
+
+# === Environment ===
+.env
+!.env.example
+
+# === Kubernetes temp ===
+k8s/**/temp-*.yaml
+*.tmp
+
+# === AWS / Terraform ===
+*.tfstate*
+.terraform/
+
+# === Temp / debug files ===
+*.txt
+*.json
+*.csv
+!**/package.json
+!**/tsconfig.json
+!**/.eslintrc.json
+destroy-run.log
+asg-info.json
+asg-v2.json
+cf-*.txt
+cf-*.log
+cluster-*.txt
+cluster-*.json
+ec2-*.txt
+eksctl-*.log
+ng-*.json
+ng-*.txt
+ng-*.log
+nodegroup-*.log
+nodegroup-*.txt
+nodegroups-*.txt
+nodegroups.txt
+resource_*.json
+resource_*.csv
+routes.json
+subnets.txt
+train_output.log
+upgrade-*.json
+upgrade-*.txt
+cleanup_vpc.ps1
+.tmp_*

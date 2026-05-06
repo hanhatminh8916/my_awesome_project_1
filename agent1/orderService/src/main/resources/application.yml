@@ -1,0 +1,47 @@
+spring:
+  application:
+    name: orders
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/agent1_sales}
+    username: ${SPRING_DATASOURCE_USERNAME:app}
+    password: ${SPRING_DATASOURCE_PASSWORD:app}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+  cloud:
+    openfeign:
+      client:
+        config:
+          inventory-service:
+            url: ${INVENTORY_SERVICE_URL:http://agent1-inventory-service:8081}
+          product-service:
+            url: ${PRODUCT_SERVICE_URL:http://agent1-product-service:8084}
+
+app:
+  agent-id: ${APP_AGENT_ID:agent1}
+
+server:
+  port: 8082
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+logging:
+  level:
+    root: INFO
+  logstash:
+    host: ${LOGSTASH_HOST:localhost}
+    port: ${LOGSTASH_PORT:5000}

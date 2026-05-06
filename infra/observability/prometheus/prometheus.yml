@@ -1,0 +1,118 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "alert_rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['prometheus:9090']
+
+  # ── agent1 & agent2 services share the same job names; cluster label distinguishes them.
+  # This mirrors the K8s setup so PrometheusQueryService works identically in both environments.
+
+  - job_name: 'inventory-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['agent1-inventory-service:8081']
+        labels:
+          cluster: agent1
+      - targets: ['agent2-inventory-service:8181']
+        labels:
+          cluster: agent2
+
+  - job_name: 'order-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['agent1-order-service:8082']
+        labels:
+          cluster: agent1
+      - targets: ['agent2-order-service:8182']
+        labels:
+          cluster: agent2
+
+  - job_name: 'revenue-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['agent1-revenue-service:8083']
+        labels:
+          cluster: agent1
+      - targets: ['agent2-revenue-service:8183']
+        labels:
+          cluster: agent2
+
+  - job_name: 'product-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['agent1-product-service:8084']
+        labels:
+          cluster: agent1
+      - targets: ['agent2-product-service:8184']
+        labels:
+          cluster: agent2
+
+  # ── Manager services ──
+
+  - job_name: 'central-api-gateway'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['manager-central-api-gateway-service:8090']
+        labels:
+          cluster: manager
+
+  - job_name: 'data-aggregation-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['manager-data-aggregation-service:8091']
+        labels:
+          cluster: manager
+
+  - job_name: 'central-analytics-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['manager-central-analytics-service:8092']
+        labels:
+          cluster: manager
+
+  - job_name: 'alert-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['manager-alert-service:8093']
+        labels:
+          cluster: manager
+
+  - job_name: 'automation-action-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['manager-automation-action-service:8094']
+        labels:
+          cluster: manager
+
+  - job_name: 'report-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['manager-report-service:8095']
+        labels:
+          cluster: manager
+
+  - job_name: 'master-data-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['manager-master-data-service:8096']
+        labels:
+          cluster: manager
+
+  - job_name: 'ml-bridge-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['manager-ml-bridge-service:8097']
+        labels:
+          cluster: manager
+

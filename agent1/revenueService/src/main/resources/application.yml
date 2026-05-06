@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: revenue
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5435/agent1_revenue}
+    username: ${SPRING_DATASOURCE_USERNAME:app}
+    password: ${SPRING_DATASOURCE_PASSWORD:app}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+  cloud:
+    openfeign:
+      client:
+        config:
+          order-service:
+            url: ${ORDER_SERVICE_URL:http://agent1-order-service:8082}
+
+app:
+  agent-id: ${APP_AGENT_ID:agent1}
+
+manager:
+  aggregation:
+    base-url: ${MANAGER_AGGREGATION_BASE_URL:http://localhost:8091}
+
+server:
+  port: 8083
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+logging:
+  level:
+    root: INFO
+  logstash:
+    host: ${LOGSTASH_HOST:localhost}
+    port: ${LOGSTASH_PORT:5000}

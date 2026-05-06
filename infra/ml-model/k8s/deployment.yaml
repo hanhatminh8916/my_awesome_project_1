@@ -1,0 +1,83 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# ml-model-service — K8s Deployment + Service
+# Namespace: manager
+# Image: <ECR_REGISTRY>/ml-model-service:<IMAGE_TAG>
+#
+# Models (rf_model.pkl, iso_model.pkl, scaler.pkl) are baked into the image
+# via a ConfigMap-backed initContainer that copies them from an S3-mounted
+# volume, OR you can bake them into the image directly (see build steps below).
+#
+# Quick build & push:
+#   cd infra/ml-model
+#   docker build -t ml-model-service:v1.0.0 .
+#   docker tag ml-model-service:v1.0.0 <ECR_REGISTRY>/ml-model-service:v1.0.0
+#   aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <ECR_REGISTRY>
+#   docker push <ECR_REGISTRY>/ml-model-service:v1.0.0
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-model-service
+  namespace: manager
+  labels:
+    app: ml-model-service
+    cluster: manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ml-model-service
+  template:
+    metadata:
+      labels:
+        app: ml-model-service
+        cluster: manager
+      annotations:
+        prometheus.io/scrape: "false"
+    spec:
+      serviceAccountName: manager-service-account
+      containers:
+        - name: ml-model-service
+          image: <ECR_REGISTRY>/ml-model-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 40
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "192Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-model-service
+  namespace: manager
+  labels:
+    app: ml-model-service
+    cluster: manager
+spec:
+  selector:
+    app: ml-model-service
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP

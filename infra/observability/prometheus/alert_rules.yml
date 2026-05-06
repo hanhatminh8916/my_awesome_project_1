@@ -1,0 +1,86 @@
+              groups:
+  - name: service-health
+    rules:
+
+      # ---------------------------------------------------------------
+      # Alert: Service is unreachable / scrape target is down
+      # ---------------------------------------------------------------
+      - alert: ServiceDown
+        expr: up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: >-
+            Service {{ $labels.job }} (instance {{ $labels.instance }}) has been
+            unreachable for more than 30 seconds. The scrape target returned no data.
+
+      # ---------------------------------------------------------------
+      # Alert: HTTP 5xx error rate exceeds 10 % over a 1-minute window
+      # ---------------------------------------------------------------
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{outcome="SERVER_ERROR"}[1m])) by (job)
+            /
+            sum(rate(http_server_requests_seconds_count[1m])) by (job)
+          ) > 0.1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High 5xx error rate on {{ $labels.job }}"
+          description: >-
+            The error rate for {{ $labels.job }} is {{ humanizePercentage $value }}
+            (threshold: 10 %). This has been sustained for more than 1 minute.
+
+      # ---------------------------------------------------------------
+      # Alert: JVM heap memory usage exceeds 80 % over a 2-minute window
+      # ---------------------------------------------------------------
+      - alert: HighJvmHeapMemory
+        expr: |
+          (
+            sum(jvm_memory_used_bytes{area="heap"}) by (job, instance)
+            /
+            sum(jvm_memory_max_bytes{area="heap"} > 0) by (job, instance)
+          ) > 0.8
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High JVM heap usage on {{ $labels.job }}"
+          description: >-
+            JVM heap memory usage for {{ $labels.job }} ({{ $labels.instance }}) is
+            {{ humanizePercentage $value }} and has exceeded 80 % for more than 2 minutes.
+            Consider tuning -Xmx or investigating memory leaks.
+
+      # ---------------------------------------------------------------
+      # Alert: System CPU usage exceeds 85 % over a 2-minute window
+      # ---------------------------------------------------------------
+      - alert: HighCpuUsage
+        expr: |
+          avg(system_cpu_usage) by (job, cluster) > 0.85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.job }}"
+          description: >-
+            CPU usage for {{ $labels.job }} (cluster {{ $labels.cluster }}) is
+            {{ humanizePercentage $value }} and has exceeded 85 % for more than 2 minutes.
+
+      # ---------------------------------------------------------------
+      # Alert: JVM heap used bytes exceed 250 MB over a 2-minute window
+      # ---------------------------------------------------------------
+      - alert: HighJvmHeapUsedBytes
+        expr: |
+          sum(jvm_memory_used_bytes{area="heap"}) by (job, cluster) > 250000000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High JVM heap bytes on {{ $labels.job }}"
+          description: >-
+            JVM heap memory used by {{ $labels.job }} (cluster {{ $labels.cluster }})
+            is above 250 MB for more than 2 minutes.

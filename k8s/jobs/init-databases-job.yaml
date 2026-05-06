@@ -1,0 +1,83 @@
+# =============================================================================
+# Kubernetes Job — Create all PostgreSQL databases on RDS
+#
+# Placeholders substituted by setup-rds-postgres.ps1:
+#   <RDS_ENDPOINT>   Amazon RDS endpoint hostname
+#   <DB_USERNAME>    RDS master username
+#   <DB_PASSWORD>    RDS master password
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: init-databases
+  namespace: default
+  labels:
+    app: init-databases
+spec:
+  ttlSecondsAfterFinished: 300      # auto-clean 5 min after completion
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: psql
+          image: postgres:16
+          env:
+            - name: PGPASSWORD
+              value: "<DB_PASSWORD>"
+            - name: PGHOST
+              value: "<RDS_ENDPOINT>"
+            - name: PGUSER
+              value: "<DB_USERNAME>"
+            - name: PGDATABASE
+              value: postgres
+          command:
+            - bash
+            - -c
+            - |
+              set -e
+              echo "Waiting for PostgreSQL to be reachable..."
+              until pg_isready -h $PGHOST -p 5432 -U $PGUSER; do
+                echo "  ...not ready yet, retrying in 5s"
+                sleep 5
+              done
+              echo "PostgreSQL is ready. Creating databases..."
+
+              create_db_if_not_exists() {
+                local db=$1
+                psql -c "SELECT 1 FROM pg_database WHERE datname='$db'" | grep -q 1 \
+                  || psql -c "CREATE DATABASE \"$db\""
+                echo "  OK: $db"
+              }
+
+              # agent1 databases
+              create_db_if_not_exists agent1_inventory
+              create_db_if_not_exists agent1_sales
+              create_db_if_not_exists agent1_products
+              create_db_if_not_exists agent1_revenue
+
+              # agent2 databases
+              create_db_if_not_exists agent2_inventory
+              create_db_if_not_exists agent2_sales
+              create_db_if_not_exists agent2_products
+              create_db_if_not_exists agent2_revenue
+
+              # manager databases (provisioned for completeness; services are stateless)
+              create_db_if_not_exists manager_api_gateway
+              create_db_if_not_exists manager_aggregation
+              create_db_if_not_exists manager_analytics
+              create_db_if_not_exists manager_alert
+              create_db_if_not_exists manager_automation
+              create_db_if_not_exists manager_report
+              create_db_if_not_exists manager_master_data
+              create_db_if_not_exists manager_ml_bridge
+
+              echo ""
+              echo "All databases created successfully."
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

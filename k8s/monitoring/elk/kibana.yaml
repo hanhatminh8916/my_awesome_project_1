@@ -1,0 +1,83 @@
+# =============================================================================
+# Kibana — Deployment + Service
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kibana
+  namespace: monitoring
+  labels:
+    app: kibana
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: kibana
+  template:
+    metadata:
+      labels:
+        app: kibana
+    spec:
+      initContainers:
+        - name: wait-for-elasticsearch
+          image: curlimages/curl:8.7.1
+          command:
+            - sh
+            - -c
+            - |
+              until curl -sf http://elasticsearch.monitoring.svc.cluster.local:9200/_cluster/health > /dev/null; do
+                echo "Waiting for Elasticsearch..."
+                sleep 5
+              done
+      containers:
+        - name: kibana
+          image: docker.elastic.co/kibana/kibana:8.14.3
+          ports:
+            - name: http
+              containerPort: 5601
+          env:
+            - name: ELASTICSEARCH_HOSTS
+              value: http://elasticsearch.monitoring.svc.cluster.local:9200
+            - name: SERVER_HOST
+              value: "0.0.0.0"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
+          readinessProbe:
+            httpGet:
+              path: /api/status
+              port: 5601
+            initialDelaySeconds: 120
+            timeoutSeconds: 5
+            periodSeconds: 20
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /api/status
+              port: 5601
+            initialDelaySeconds: 180
+            timeoutSeconds: 5
+            periodSeconds: 30
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana
+  namespace: monitoring
+  labels:
+    app: kibana
+spec:
+  selector:
+    app: kibana
+  ports:
+    - name: http
+      port: 5601
+      targetPort: 5601
+  type: ClusterIP

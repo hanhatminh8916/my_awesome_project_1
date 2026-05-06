@@ -1,0 +1,175 @@
+# =============================================================================
+# Logstash — ConfigMap + Deployment + Service
+# Receives beats (5044) and TCP json_lines (5000), writes to Elasticsearch.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-config
+  namespace: monitoring
+data:
+  logstash.conf: |
+    input {
+      # Filebeat ships Docker/container logs
+      beats {
+        port => 5044
+      }
+      # Spring Boot LogstashTcpSocketAppender (direct TCP)
+      tcp {
+        port  => 5000
+        codec => json_lines
+      }
+    }
+
+    filter {
+      if [@metadata][beat] == "filebeat" {
+        if [message] =~ /^\s*\{/ {
+          json {
+            source               => "message"
+            skip_on_invalid_json => true
+          }
+          mutate { remove_field => ["message"] }
+        }
+        if ![cluster] and [kubernetes][namespace] {
+          mutate {
+            copy => { "[kubernetes][namespace]" => "cluster" }
+          }
+        }
+        mutate {
+          remove_field => ["agent", "ecs", "input", "log", "event", "host", "@version"]
+        }
+      } else {
+        mutate { remove_field => ["@version", "port"] }
+      }
+
+      if [timestamp] {
+        date {
+          match        => ["timestamp", "ISO8601"]
+          target       => "@timestamp"
+          remove_field => ["timestamp"]
+        }
+      }
+
+      if [stack_trace] and ![exception] {
+        mutate { rename => { "stack_trace" => "exception" } }
+      }
+
+      if [exception] {
+        grok {
+          match => { "exception" => "(?<exception_class>(?:[a-zA-Z$_][a-zA-Z0-9$_.]*\\.)*[A-Z][a-zA-Z0-9$_]*(?:Exception|Error)[^\n\r]*)" }
+          tag_on_failure => []
+        }
+        mutate { add_field => { "has_exception" => true } }
+      }
+    }
+
+    output {
+      elasticsearch {
+        hosts  => ["http://elasticsearch.monitoring.svc.cluster.local:9200"]
+        index  => "microservices-logs-%{+YYYY.MM.dd}"
+        action => "index"
+      }
+    }
+
+  logstash.yml: |
+    http.host: 0.0.0.0
+    path.config: /usr/share/logstash/pipeline
+    pipeline.workers: 1
+    pipeline.batch.size: 125
+    pipeline.batch.delay: 50
+    xpack.monitoring.enabled: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logstash
+  namespace: monitoring
+  labels:
+    app: logstash
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logstash
+  template:
+    metadata:
+      labels:
+        app: logstash
+    spec:
+      containers:
+        - name: logstash
+          image: docker.elastic.co/logstash/logstash:8.14.3
+          ports:
+            - name: beats
+              containerPort: 5044
+            - name: tcp-json
+              containerPort: 5000
+            - name: monitoring
+              containerPort: 9600
+          volumeMounts:
+            - name: logstash-pipeline
+              mountPath: /usr/share/logstash/pipeline
+              readOnly: true
+            - name: logstash-settings
+              mountPath: /usr/share/logstash/config/logstash.yml
+              subPath: logstash.yml
+              readOnly: true
+          env:
+            - name: LS_JAVA_OPTS
+              value: "-Xmx384m -Xms384m"
+          resources:
+            requests:
+              cpu: 200m
+              memory: 384Mi
+            limits:
+              cpu: 800m
+              memory: 1024Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9600
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9600
+            initialDelaySeconds: 90
+            periodSeconds: 20
+            failureThreshold: 3
+      volumes:
+        - name: logstash-pipeline
+          configMap:
+            name: logstash-config
+            items:
+              - key: logstash.conf
+                path: logstash.conf
+        - name: logstash-settings
+          configMap:
+            name: logstash-config
+            items:
+              - key: logstash.yml
+                path: logstash.yml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logstash
+  namespace: monitoring
+  labels:
+    app: logstash
+spec:
+  selector:
+    app: logstash
+  ports:
+    - name: beats
+      port: 5044
+      targetPort: 5044
+    - name: tcp-json
+      port: 5000
+      targetPort: 5000
+    - name: monitoring
+      port: 9600
+      targetPort: 9600
+  type: ClusterIP
